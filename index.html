@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket File Download</title>
+</head>
+<body>
+  <button id="downloadButton" disabled>Download File</button>
+
+  <script>
+    const websocket = new WebSocket('ws://localhost:8765');
+    const downloadButton = document.getElementById('downloadButton');
+
+    websocket.onopen = () => {
+      console.log('WebSocket connection established');
+    };
+
+    websocket.onmessage = async event => {
+      if (!downloadButton.disabled) {
+        return; // Ignore additional messages after file is received
+      }
+
+      const fileSize = parseInt(event.data);
+      let receivedSize = 0;
+      const chunks = [];
+
+      while (receivedSize < fileSize) {
+        const chunk = await new Promise(resolve => {
+          websocket.onmessage = event => resolve(event.data);
+        });
+
+        receivedSize += chunk.length;
+        chunks.push(chunk);
+      }
+
+      const fileData = new Uint8Array(receivedSize);
+      let offset = 0;
+
+      for (const chunk of chunks) {
+        fileData.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      const receivedFile = new Blob([fileData.buffer]);
+      const downloadUrl = URL.createObjectURL(receivedFile);
+
+      downloadButton.href = downloadUrl;
+      downloadButton.download = 'received_file.db';
+      downloadButton.disabled = false;
+    };
+
+    websocket.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+  </script>
+</body>
+</html>
+
